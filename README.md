@@ -1,6 +1,6 @@
 This repository contains code for "MemGuard: Defending against Black-Box Membership Inference Attacks via Adversarial Examples". 
 
-Required python tool (under Ubuntu 16.04): Python 2.7, Keras (2.2.2), TensorFlow 1.8.0 (as we compute gradient, different backend may have different implementation, you maybe need to check the backend), numpy, argparse (1.1), scipy (1.2.0). GPU support (you can also comment related code if not using GPU). 
+Requirements (tested on Python 3.9): PyTorch 2.5.1 (CUDA 12.1), torchvision 0.20.1, torchaudio 2.5.1, numpy, argparse, scipy. The project no longer depends on TensorFlow/Keras. GPU is optional but recommended.
 
 
 
@@ -26,6 +26,8 @@ defense_framework.py implements our defense algorithm.
 train_attack_shadow_model.py is used to train attacker's shadow model.
 
 evaluate_nn_attack.py is used to evaluate the NN-Attack. 
+
+All trained models are saved as PyTorch state_dict checkpoints in the result folder (e.g., epoch_XXX_weights_*.pt).
 
 
 You can directly run run_location_defense.py (python run_location_defense.py) after installing python tools. It will automatically run the pipeline. 

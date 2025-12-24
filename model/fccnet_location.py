@@ -1,54 +1,112 @@
-from __future__ import print_function
-import keras
-from keras.regularizers import l2
-from keras import backend as K
-from keras.models import Model
-from keras.models import Sequential
-from keras.layers import Dense, Dropout, Activation, Input, concatenate
 import numpy as np
-np.random.seed(10000)
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
 
 
-def model_user(input_shape,labels_dim):
-    inputs=Input(shape=input_shape)
-    middle_layer=Dense(1024,kernel_initializer=keras.initializers.glorot_uniform(seed=100),activation='relu')(inputs)
-    middle_layer=Dense(512,kernel_initializer=keras.initializers.glorot_uniform(seed=100),activation='relu')(middle_layer)
-    middle_layer=Dense(256,kernel_initializer=keras.initializers.glorot_uniform(seed=100),activation='relu')(middle_layer)
-    middle_layer=Dense(128,kernel_initializer=keras.initializers.glorot_uniform(seed=100),activation='relu')(middle_layer)
-    outputs_logits=Dense(labels_dim,kernel_initializer=keras.initializers.glorot_uniform(seed=100))(middle_layer)
-    outputs=Activation('softmax')(outputs_logits)
-    model = Model(inputs=inputs, outputs=outputs)
-    return model
-
-def model_defense(input_shape,labels_dim):
-    inputs_b=Input(shape=input_shape)
-    x_b=Dense(256,kernel_initializer=keras.initializers.glorot_uniform(seed=1000),activation='relu')(inputs_b)
-    x_b=Dense(128,kernel_initializer=keras.initializers.glorot_uniform(seed=1000),activation='relu')(x_b)
-    x_b=Dense(64,kernel_initializer=keras.initializers.glorot_uniform(seed=1000),activation='relu')(x_b)
-    outputs_pre=Dense(labels_dim,kernel_initializer=keras.initializers.glorot_uniform(seed=100))(x_b)
-    outputs=Activation('sigmoid')(outputs_pre)
-    model = Model(inputs=inputs_b, outputs=outputs)
-    return model
+def _init_weights(module: nn.Module) -> None:
+    if isinstance(module, nn.Linear):
+        nn.init.xavier_uniform_(module.weight)
+        nn.init.zeros_(module.bias)
 
 
-def model_defense_optimize(input_shape,labels_dim):
-    inputs_b=Input(shape=input_shape)
-    x_b=Activation('softmax')(inputs_b)
-    x_b=Dense(256,kernel_initializer=keras.initializers.glorot_uniform(seed=100),activation='relu')(x_b)
-    x_b=Dense(128,kernel_initializer=keras.initializers.glorot_uniform(seed=100),activation='relu')(x_b)
-    x_b=Dense(64,kernel_initializer=keras.initializers.glorot_uniform(seed=100),activation='relu')(x_b)
-    outputs_pre=Dense(labels_dim,kernel_initializer=keras.initializers.glorot_uniform(seed=100))(x_b)
-    outputs=Activation('sigmoid')(outputs_pre)
-    model = Model(inputs=inputs_b, outputs=outputs)
-    return model
+def _flatten_input_dim(input_shape) -> int:
+    # Keras used tuples; torch modules expect an integer feature size.
+    return int(np.prod(input_shape))
 
 
-def model_attack_nn(input_shape,labels_dim):
-    inputs_b=Input(shape=input_shape)
-    x_b=Dense(512,kernel_initializer=keras.initializers.glorot_uniform(seed=100),activation='relu')(inputs_b)
-    x_b=Dense(256,kernel_initializer=keras.initializers.glorot_uniform(seed=100),activation='relu')(x_b)
-    x_b=Dense(128,kernel_initializer=keras.initializers.glorot_uniform(seed=100),activation='relu')(x_b)
-    outputs_pre=Dense(labels_dim,kernel_initializer=keras.initializers.glorot_uniform(seed=100))(x_b)
-    outputs=Activation('sigmoid')(outputs_pre)
-    model = Model(inputs=inputs_b, outputs=outputs)
-    return model   
+class UserModel(nn.Module):
+    def __init__(self, input_dim: int, labels_dim: int):
+        super().__init__()
+        self.features = nn.Sequential(
+            nn.Linear(input_dim, 1024),
+            nn.ReLU(inplace=True),
+            nn.Linear(1024, 512),
+            nn.ReLU(inplace=True),
+            nn.Linear(512, 256),
+            nn.ReLU(inplace=True),
+            nn.Linear(256, 128),
+            nn.ReLU(inplace=True),
+        )
+        self.classifier = nn.Linear(128, labels_dim)
+        self.apply(_init_weights)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.features(x)
+        logits = self.classifier(x)
+        return logits
+
+
+class DefenseModel(nn.Module):
+    def __init__(self, input_dim: int, labels_dim: int):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(input_dim, 256),
+            nn.ReLU(inplace=True),
+            nn.Linear(256, 128),
+            nn.ReLU(inplace=True),
+            nn.Linear(128, 64),
+            nn.ReLU(inplace=True),
+            nn.Linear(64, labels_dim),
+        )
+        self.apply(_init_weights)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.net(x)
+
+
+class DefenseOptimizeModel(nn.Module):
+    def __init__(self, input_dim: int, labels_dim: int):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(input_dim, 256),
+            nn.ReLU(inplace=True),
+            nn.Linear(256, 128),
+            nn.ReLU(inplace=True),
+            nn.Linear(128, 64),
+            nn.ReLU(inplace=True),
+            nn.Linear(64, labels_dim),
+        )
+        self.apply(_init_weights)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        softmaxed = F.softmax(x, dim=1)
+        return self.net(softmaxed)
+
+
+class AttackNNModel(nn.Module):
+    def __init__(self, input_dim: int, labels_dim: int):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(input_dim, 512),
+            nn.ReLU(inplace=True),
+            nn.Linear(512, 256),
+            nn.ReLU(inplace=True),
+            nn.Linear(256, 128),
+            nn.ReLU(inplace=True),
+            nn.Linear(128, labels_dim),
+        )
+        self.apply(_init_weights)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.net(x)
+
+
+def model_user(input_shape, labels_dim):
+    input_dim = _flatten_input_dim(input_shape)
+    return UserModel(input_dim=input_dim, labels_dim=labels_dim)
+
+
+def model_defense(input_shape, labels_dim):
+    input_dim = _flatten_input_dim(input_shape)
+    return DefenseModel(input_dim=input_dim, labels_dim=labels_dim)
+
+
+def model_defense_optimize(input_shape, labels_dim):
+    input_dim = _flatten_input_dim(input_shape)
+    return DefenseOptimizeModel(input_dim=input_dim, labels_dim=labels_dim)
+
+
+def model_attack_nn(input_shape, labels_dim):
+    input_dim = _flatten_input_dim(input_shape)
+    return AttackNNModel(input_dim=input_dim, labels_dim=labels_dim)
