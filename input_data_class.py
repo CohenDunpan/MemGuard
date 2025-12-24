@@ -10,11 +10,14 @@ class InputData():
         self.dataset=dataset
 
         self.config = configparser.ConfigParser()
-        self.config.read('config.ini')
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        config_path = os.path.join(base_dir, 'config.ini')
+        self.config.read(config_path)
 
 
-        self.data_filepath=str(self.config[dataset]['all_data_path'])
-        self.index_filepath=str(self.config[dataset]['shuffle_index'])
+        # Resolve data paths relative to the MemGuard directory to be robust to CWD
+        self.data_filepath=os.path.normpath(os.path.join(base_dir, str(self.config[dataset]['all_data_path'])))
+        self.index_filepath=os.path.normpath(os.path.join(base_dir, str(self.config[dataset]['shuffle_index'])))
 
         self.user_training_data_range=self.config[dataset]['user_training_data_index_range']
         self.user_training_data_range=ast.literal_eval(self.user_training_data_range)
@@ -71,7 +74,7 @@ class InputData():
         y_train_defender=np.concatenate((y_train_user,y_nontrain_defender),axis=0)
         y_train_defender=y_train_defender-1.0
 
-        label_train_defender=np.zeros([x_train_defender.shape[0]],dtype=np.int)
+        label_train_defender=np.zeros([x_train_defender.shape[0]],dtype=int)
         label_train_defender[0:x_train_user.shape[0]]=1
         return (x_train_defender,y_train_defender,label_train_defender)
 
@@ -90,7 +93,7 @@ class InputData():
         x_train_attacker=np.concatenate((x_train_member_attacker,x_train_nonmember_attacker),axis=0)
         y_train_attacker=np.concatenate((y_train_member_attacker,y_train_nonmumber_attacker),axis=0)
         y_train_attacker=y_train_attacker-1.0
-        label_train_attacker=np.zeros([x_train_attacker.shape[0]],dtype=np.int)
+        label_train_attacker=np.zeros([x_train_attacker.shape[0]],dtype=int)
         label_train_attacker[0:x_train_member_attacker.shape[0]]=1
 
         return (x_train_attacker,y_train_attacker,label_train_attacker)
@@ -111,7 +114,7 @@ class InputData():
         x_evaluate_attacker=np.concatenate((x_evaluate_member_attacker,x_evaluate_nonmember_attacker),axis=0)
         y_evaluate_attacker=np.concatenate((y_evaluate_member_attacker,y_evaluate_nonmumber_attacker),axis=0)
         y_evaluate_attacker=y_evaluate_attacker-1.0
-        label_evaluate_attacker=np.zeros([x_evaluate_attacker.shape[0]],dtype=np.int)
+        label_evaluate_attacker=np.zeros([x_evaluate_attacker.shape[0]],dtype=int)
         label_evaluate_attacker[0:x_evaluate_member_attacker.shape[0]]=1
 
         return (x_evaluate_attacker,y_evaluate_attacker,label_evaluate_attacker)

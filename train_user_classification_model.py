@@ -13,7 +13,8 @@ import input_data_class
 
 
 def _load_network_module(path: str, module_name: str):
-    loader = importlib.machinery.SourceFileLoader(module_name, path)
+    full_path = path if os.path.isabs(path) else os.path.join(os.path.dirname(os.path.abspath(__file__)), path)
+    loader = importlib.machinery.SourceFileLoader(module_name, full_path)
     spec = importlib.util.spec_from_loader(loader.name, loader)
     module = importlib.util.module_from_spec(spec)
     loader.exec_module(module)
@@ -58,7 +59,8 @@ def main():
     dataset = args.dataset
     input_data = input_data_class.InputData(dataset=dataset)
     config = configparser.ConfigParser()
-    config.read('config.ini')
+    config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config.ini')
+    config.read(config_path)
 
     num_classes = int(config[dataset]["num_classes"])
     save_model = True
